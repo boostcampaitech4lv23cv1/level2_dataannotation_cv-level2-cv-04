@@ -8,6 +8,13 @@ input
 .gitconfig
 workspace
 
+## kdy
+**/*.pth
+.bashrc
+.python_history
+.wget-hypothesis
+.jupyter/
+.wget-hsts
 
 ### Linux ###
 *~
