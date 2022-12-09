@@ -16,6 +16,11 @@ workspace
 .jupyter/
 .wget-hsts
 
+## syd
+.profile
+.config
+.nv
+
 ### Linux ###
 *~
 
