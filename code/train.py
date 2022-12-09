@@ -4,6 +4,7 @@ import time
 import math
 from datetime import timedelta
 from argparse import ArgumentParser
+import json
 
 import torch
 from torch import cuda
@@ -20,8 +21,8 @@ def parse_args():
     parser = ArgumentParser()
 
     # Conventional args
-    parser.add_argument('--data_dir', type=str,
-                        default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/ICDAR17_Korean'))
+    parser.add_argument('--data_dirs', type=str,
+                        default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data_dirs.json'))
     parser.add_argument('--model_dir', type=str, default=os.environ.get('SM_MODEL_DIR',
                                                                         'trained_models'))
 
@@ -43,9 +44,17 @@ def parse_args():
     return args
 
 
-def do_training(data_dir, model_dir, device, image_size, input_size, num_workers, batch_size,
+def do_training(data_dirs, model_dir, device, image_size, input_size, num_workers, batch_size,
                 learning_rate, max_epoch, save_interval):
-    dataset = SceneTextDataset(data_dir, split='train', image_size=image_size, crop_size=input_size)
+    whole_data_dirs = []
+    whole_data_splits = []
+    with open(data_dirs, 'r') as f:
+        dirs = json.load(f)
+        for d in dirs['data'].values():
+            whole_data_dirs.append(d["data_dir"])
+            whole_data_splits.append(d["split"])
+        
+    dataset = SceneTextDataset(whole_data_dirs, splits=whole_data_splits, image_size=image_size, crop_size=input_size)
     dataset = EASTDataset(dataset)
     num_batches = math.ceil(len(dataset) / batch_size)
     train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)

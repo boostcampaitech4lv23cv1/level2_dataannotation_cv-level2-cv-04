@@ -334,34 +334,48 @@ def filter_vertices(vertices, labels, ignore_under=0, drop_under=0):
 
 
 class SceneTextDataset(Dataset):
-    def __init__(self, root_dir, split='train', image_size=1024, crop_size=512, color_jitter=True,
+    def __init__(self, root_dirs=['../input/data/'], splits=['train'], image_size=1024, crop_size=512, color_jitter=True,
                  normalize=True):
-        with open(osp.join(root_dir, 'ufo/{}.json'.format(split)), 'r') as f:
-            anno = json.load(f)
+        
+        self.anno = dict()
+        self.anno['images'] = dict()
+        for root_dir, split in zip(root_dirs, splits):
+            with open(osp.join(root_dir, 'ufo/{}.json'.format(split)), 'r') as f:
+                anno = json.load(f)
+                for filename, d in anno['images'].items():
+                    self.anno['images'][osp.join(root_dir, 'images', filename)] = d
+                    
 
-        self.anno = anno
-        self.image_fnames = sorted(anno['images'].keys())
-        self.image_dir = osp.join(root_dir, 'images')
+        self.image_fnames = sorted(self.anno['images'].keys())
 
         self.image_size, self.crop_size = image_size, crop_size
         self.color_jitter, self.normalize = color_jitter, normalize
+
+        funcs = []
+        if self.color_jitter:
+            funcs.append(A.ColorJitter(0.5, 0.5, 0.5, 0.25))
+        if self.normalize:
+            funcs.append(A.Normalize(mean = (0.485, 0.456, 0.406), std = (0.229, 0.224, 0.225)))
+        self.transforms = A.Compose(funcs)
 
     def __len__(self):
         return len(self.image_fnames)
 
     def __getitem__(self, idx):
         image_fname = self.image_fnames[idx]
-        image_fpath = osp.join(self.image_dir, image_fname)
 
         vertices, labels = [], []
         for word_info in self.anno['images'][image_fname]['words'].values():
             vertices.append(np.array(word_info['points']).flatten())
             labels.append(int(not word_info['illegibility']))
-        vertices, labels = np.array(vertices, dtype=np.float32), np.array(labels, dtype=np.int64)
+            
+        vertices = np.array(vertices, dtype=np.float32)
+        labels = np.array(labels, dtype=np.int64)
+        # vertices, labels = np.array(vertices, dtype=np.float32), np.array(labels, dtype=np.int64)
 
         vertices, labels = filter_vertices(vertices, labels, ignore_under=10, drop_under=1)
 
-        image = Image.open(image_fpath)
+        image = Image.open(image_fname)
         image, vertices = resize_img(image, vertices, self.image_size)
         image, vertices = adjust_height(image, vertices)
         image, vertices = rotate_img(image, vertices)
@@ -371,14 +385,9 @@ class SceneTextDataset(Dataset):
             image = image.convert('RGB')
         image = np.array(image)
 
-        funcs = []
-        if self.color_jitter:
-            funcs.append(A.ColorJitter(0.5, 0.5, 0.5, 0.25))
-        if self.normalize:
-            funcs.append(A.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)))
-        transform = A.Compose(funcs)
 
-        image = transform(image=image)['image']
+
+        image = self.transforms(image=image)['image']
         word_bboxes = np.reshape(vertices, (-1, 4, 2))
         roi_mask = generate_roi_mask(image, vertices, labels)
 
