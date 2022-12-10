@@ -24,6 +24,7 @@ workspace
 .nv
 utils/aihub_to_ufo/images
 utils/aihub_to_ufo/labels
+code/z.sh
 
 ### Linux ###
 *~
