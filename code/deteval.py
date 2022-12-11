@@ -132,6 +132,9 @@ def calc_deteval_metrics(pred_bboxes_dict, gt_bboxes_dict, transcriptions_dict=N
     _pred_bboxes_dict, _gt_bboxes_dict= deepcopy(pred_bboxes_dict), deepcopy(gt_bboxes_dict)
     pred_bboxes_dict, gt_bboxes_dict = dict(), dict()
     for sample_name, bboxes in _pred_bboxes_dict.items():
+        # print("sample_name", sample_name) # 추가
+        # print("bboxes", bboxes) # 이게 왜 리스트지? 이해가 안가내 진짜
+        
         # 원래 rect 형식이었으면 변환 없이 그대로 이용
         if len(bboxes) > 0 and np.array(bboxes[0]).ndim == 1 and len(bboxes[0]) == 4:
             pred_bboxes_dict = _pred_bboxes_dict

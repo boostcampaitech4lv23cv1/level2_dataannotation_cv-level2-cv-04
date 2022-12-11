@@ -16,8 +16,27 @@ from dataset import SceneTextDataset
 from model import EAST
 import wandb
 
+# 영동이가 추가한 부분, 이거 없으면 ai_hub dset으로 train시 오류 발생
 from PIL import ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
+
+import random
+import numpy as np
+
+def seed_everything(seed:int = 42):
+    """재현을 하기 위한 시드 고정 함수
+
+    Args:
+        seed (int, optional): 시드. Defaults to 42.
+    """
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # if use multi-GPU
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    np.random.seed(seed)
+    random.seed(seed)
+
 
 def parse_args():
     parser = ArgumentParser()
@@ -52,6 +71,7 @@ def parse_args():
 
 def do_training(data_dir, model_dir, device, image_size, input_size, num_workers, batch_size,
                 learning_rate, max_epoch, save_interval, project_name, exp_name):
+    print(data_dir)
     dataset = SceneTextDataset(data_dir, split='train', image_size=image_size, crop_size=input_size)
     dataset = EASTDataset(dataset)
     num_batches = math.ceil(len(dataset) / batch_size)
@@ -123,6 +143,8 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
 
 
 def main(args):
+    # 시드 고정
+    seed_everything(42)
 
     # 본인의 프로젝트를 argparser로 넣으세요, entity는 기존에 사용하던 팀 엔티티를 사용합니다, 실험 이름은 argpaser로 넣으세요.
     wandb.init(project=args.project_name, entity="boostcamp_aitech4_jdp", name=args.exp_name)
