@@ -16,6 +16,8 @@ from dataset import SceneTextDataset
 from model import EAST
 import wandb
 
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 def parse_args():
     parser = ArgumentParser()
