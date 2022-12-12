@@ -12,7 +12,7 @@ from detect import detect
 import deteval_v2
 
 
-def do_validation(model, ckpt_fpath, valid_annot_path, input_size, batch_size, split='public'):
+def do_validation(model, ckpt_fpath, valid_annot_path, input_size, batch_size, split='public', json_file_name='temp'):
     print('Inference in progress')
     model.eval()
 
@@ -48,7 +48,7 @@ def do_validation(model, ckpt_fpath, valid_annot_path, input_size, batch_size, s
     
     # validation inference 결과를 저장할 폴더를 만듭니다
     os.makedirs("/opt/ml/code/validations", exist_ok=True)
-    with open("./validations/validset_infer_result.json", 'w') as f:
+    with open(f"./validations/{json_file_name}.json", 'w') as f:
         json.dump(ufo_result, f, indent=4)
 
     # 현재 문제가 되는 부분
