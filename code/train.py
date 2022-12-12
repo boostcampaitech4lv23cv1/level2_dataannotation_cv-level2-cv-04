@@ -137,11 +137,12 @@ def main(args):
     # 시드 고정
     seed_everything(42)
     
-    # 본인의 프로젝트를 argparser로 넣으세요, entity는 기존에 사용하던 팀 엔티티를 사용합니다, 실험 이름은 argpaser로 넣으세요.
-    wandb.init(project=args.project_name, entity="boostcamp_aitech4_jdp", name=args.exp_name)
+    if args.log_wandb:
+        # 본인의 프로젝트를 argparser로 넣으세요, entity는 기존에 사용하던 팀 엔티티를 사용합니다, 실험 이름은 argpaser로 넣으세요.
+        wandb.init(project=args.project_name, entity="boostcamp_aitech4_jdp", name=args.exp_name)
     
-    # 기본적으로 args로 설정한 모든 값들을 config로 저장합니다.
-    wandb.config.update(args)
+        # 기본적으로 args로 설정한 모든 값들을 config로 저장합니다.
+        wandb.config.update(args)
     
     do_training(**args.__dict__)
 
