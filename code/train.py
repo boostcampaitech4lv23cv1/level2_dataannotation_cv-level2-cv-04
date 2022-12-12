@@ -19,11 +19,18 @@ import validation
 from model import EAST
 import wandb
 
+# 영동이가 추가한 부분, 이거 없으면 ai_hub dset으로 train시 오류 발생
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
 import random
 import numpy as np
 
 # default wandb log 기능
 # 2022-12-12 17:48 validation, wandb 선택하는 기능 추가함
+# 2022-12-13 07:10 ImageFile.LOAD_TRUNCATED_IMAGES 코드라인 추가(버그 발생)
+#                  saveinterval default 1로 변경
+#                  model 가중치 저장을 백업용으로 이중으로 수행, (저장이름은 실험이름)
 
 
 
@@ -141,6 +148,9 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
             ckpt_fpath = osp.join(model_dir, 'latest.pth')
             torch.save(model.state_dict(), ckpt_fpath)
 
+            ckpt_fpath_for_backup = osp.join(model_dir, f'{exp_name}.pth')
+            torch.save(model.state_dict(), ckpt_fpath_for_backup)
+
 
 def do_training_with_valid(data_dir, model_dir, device, image_size, input_size, num_workers, batch_size,
                            learning_rate, max_epoch, save_interval, log_wandb, project_name, exp_name, log_val):
@@ -211,6 +221,8 @@ def do_training_with_valid(data_dir, model_dir, device, image_size, input_size, 
                 os.makedirs(model_dir)
             ckpt_fpath = osp.join(model_dir, 'latest.pth')
             torch.save(model.state_dict(), ckpt_fpath)
+            ckpt_fpath_for_backup = osp.join(model_dir, f'{exp_name}.pth')
+            torch.save(model.state_dict(), ckpt_fpath_for_backup)
         
         # train iter 과정이 마무리되면 valid iter 과정을 수행
         model.eval()
@@ -259,7 +271,7 @@ def do_training_with_valid(data_dir, model_dir, device, image_size, input_size, 
         valid_annot_path = osp.join(data_dir, 'ufo', 'splited_valid.json')
 
         ## validation 결과를 inference해서 json파일을 만듭니다.
-        validation.do_validation(model, None, valid_annot_path, input_size, valid_batch_size*2, None)
+        validation.do_validation(model, None, valid_annot_path, input_size, valid_batch_size*2, None, exp_name)
 
 
 
