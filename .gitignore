@@ -13,6 +13,7 @@ code/*.sh
 code/*.out
 utils/aihub_to_ufo/
 code/*.json
+code/validations
 
 ## kdy
 **/*.pth

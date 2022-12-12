@@ -12,7 +12,7 @@ from torch.optim import lr_scheduler
 from tqdm import tqdm
 
 from east_dataset import EASTDataset
-from dataset_v2 import SceneTextDataset
+from dataset_for_valid import SceneTextDataset2
 from model import EAST
 import wandb
 from glob import glob
@@ -78,11 +78,11 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
 
     # ufo dir에 "splited_train.json"과 "splited_valid.json"이 필요하며 이름은 고정되어 있음
     # 이들은 train.json 파일을 이용하여 생성되며 만들기 위해서는
-    # utils>split_train_and_valid.ipynb로 생성가능함.
+    # utils>split_train_and_valid.ipynb로 생성 가능함.
 
     # dataset_v2에서 import한 Dataset
-    train_dataset = SceneTextDataset(data_dir, split='train', image_size=image_size, crop_size=input_size)
-    valid_dataset = SceneTextDataset(data_dir, split='valid', image_size=image_size, crop_size=input_size)
+    train_dataset = SceneTextDataset2(data_dir, split='train', image_size=image_size, crop_size=input_size)
+    valid_dataset = SceneTextDataset2(data_dir, split='valid', image_size=image_size, crop_size=input_size)
     
     train_dataset = EASTDataset(train_dataset)
     valid_dataset = EASTDataset(valid_dataset)

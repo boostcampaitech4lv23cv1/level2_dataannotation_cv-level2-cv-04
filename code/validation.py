@@ -46,11 +46,13 @@ def do_validation(model, ckpt_fpath, valid_annot_path, input_size, batch_size, s
         words_info = {idx: dict(points=bbox.tolist()) for idx, bbox in enumerate(bboxes)}
         ufo_result['images'][image_fname] = dict(words=words_info)
     
-    with open("validset_infer_result.json", 'w') as f:
+    # validation inference 결과를 저장할 폴더를 만듭니다
+    os.makedirs("/opt/ml/code/validations", exist_ok=True)
+    with open("./validations/validset_infer_result.json", 'w') as f:
         json.dump(ufo_result, f, indent=4)
 
     # 현재 문제가 되는 부분
-    resDict = deteval_v2.calc_deteval_metrics(ufo_result["images"], valid_anno["images"])
+    # resDict = deteval_v2.calc_deteval_metrics(ufo_result["images"], valid_anno["images"])
     
 
     return None
