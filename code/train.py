@@ -31,7 +31,7 @@ import numpy as np
 # 2022-12-13 07:10 ImageFile.LOAD_TRUNCATED_IMAGES 코드라인 추가(버그 발생)
 #                  saveinterval default 1로 변경
 #                  model 가중치 저장을 백업용으로 이중으로 수행, (저장이름은 실험이름)
-
+# 2022-12-13 08:24 Validation loss 로깅 버그 수정
 
 
 def seed_everything(seed:int = 42):
@@ -190,9 +190,9 @@ def do_training_with_valid(data_dir, model_dir, device, image_size, input_size, 
                 loss.backward()
                 optimizer.step()
 
-                loss_val = loss.item()
+                loss_train = loss.item()
                 
-                epoch_loss += loss_val
+                epoch_loss += loss_train
                 epoch_loss_cls += extra_info['cls_loss']
                 epoch_loss_angle += extra_info['angle_loss']
                 epoch_loss_iou += extra_info['iou_loss']
@@ -227,15 +227,17 @@ def do_training_with_valid(data_dir, model_dir, device, image_size, input_size, 
         # train iter 과정이 마무리되면 valid iter 과정을 수행
         model.eval()
         print('VALIDATION...')
+        val_epoch_loss = 0
+        val_epoch_loss_cls, val_epoch_loss_angle, val_epoch_loss_iou = 0, 0, 0
         with tqdm(total=num_batches_valid) as pbar:
             for img, gt_score_map, gt_geo_map, roi_mask in valid_loader:
                 pbar.set_description('[Epoch {}]'.format(epoch + 1))
                 loss, extra_info = model.train_step(img, gt_score_map, gt_geo_map, roi_mask)
                 loss_val = loss.item()
-                epoch_loss += loss_val
-                epoch_loss_cls += extra_info['cls_loss']
-                epoch_loss_angle += extra_info['angle_loss']
-                epoch_loss_iou += extra_info['iou_loss']
+                val_epoch_loss += loss_val
+                val_epoch_loss_cls += extra_info['cls_loss']
+                val_epoch_loss_angle += extra_info['angle_loss']
+                val_epoch_loss_iou += extra_info['iou_loss']
 
                 pbar.update(1)
                 val_dict = {
@@ -245,10 +247,10 @@ def do_training_with_valid(data_dir, model_dir, device, image_size, input_size, 
                 pbar.set_postfix(val_dict)
 
         # validset에폭 당 평균 로스들을 구함
-        mean_loss = epoch_loss / num_batches_valid
-        mean_loss_cls = epoch_loss_cls/num_batches_valid
-        mean_loss_angle = epoch_loss_angle/num_batches_valid
-        mean_loss_iou = epoch_loss_iou/num_batches_valid
+        val_mean_loss = val_epoch_loss / num_batches_valid
+        val_mean_loss_cls = val_epoch_loss_cls/num_batches_valid
+        val_mean_loss_angle = val_epoch_loss_angle/num_batches_valid
+        val_mean_loss_iou = val_epoch_loss_iou/num_batches_valid
 
         # 딕셔너리 형태로 변환하여 wandb에 로깅
         if log_wandb == "True":
@@ -258,10 +260,10 @@ def do_training_with_valid(data_dir, model_dir, device, image_size, input_size, 
             log_dict["mean_loss_angle"] = mean_loss_angle
             log_dict["mean_loss_iou"] = mean_loss_iou
 
-            log_dict["valid_mean_loss"] = mean_loss
-            log_dict["valid_mean_loss_cls"] = mean_loss_cls
-            log_dict["valid_mean_loss_angle"] = mean_loss_angle
-            log_dict["valid_mean_loss_iou"] = mean_loss_iou
+            log_dict["valid_mean_loss"] = val_mean_loss
+            log_dict["valid_mean_loss_cls"] = val_mean_loss_cls
+            log_dict["valid_mean_loss_angle"] = val_mean_loss_angle
+            log_dict["valid_mean_loss_iou"] = val_mean_loss_iou
             wandb.log(log_dict)
 
         print(f'Mean cls loss: {mean_loss_cls:.4f} | Mean angle loss: {mean_loss_angle:.4f} | Mean iou loss: {mean_loss_iou:.4f}')
