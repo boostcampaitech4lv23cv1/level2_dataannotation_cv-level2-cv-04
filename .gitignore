@@ -9,6 +9,10 @@ input
 workspace
 .netrc
 **/wandb
+code/*.sh
+code/*.out
+utils/aihub_to_ufo/
+code/*.json
 
 ## kdy
 **/*.pth
@@ -22,9 +26,6 @@ workspace
 .profile
 .config
 .nv
-utils/aihub_to_ufo/images
-utils/aihub_to_ufo/labels
-code/z.sh
 
 ### Linux ###
 *~
