@@ -14,6 +14,24 @@ from tqdm import tqdm
 from east_dataset import EASTDataset
 from dataset import SceneTextDataset
 from model import EAST
+import wandb
+
+import random
+import numpy as np
+
+
+def seed_everything(seed:int = 42):
+    """재현을 하기 위한 시드 고정 함수
+    Args:
+        seed (int, optional): 시드. Defaults to 42.
+    """
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # if use multi-GPU
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    np.random.seed(seed)
+    random.seed(seed)
 
 
 def parse_args():
@@ -34,7 +52,10 @@ def parse_args():
     parser.add_argument('--learning_rate', type=float, default=1e-3)
     parser.add_argument('--max_epoch', type=int, default=200)
     parser.add_argument('--save_interval', type=int, default=5)
-
+    # wandb 프로젝트와 실험이름을 저장하기 위해 argpaser 추가함
+    parser.add_argument('--log_wandb', type=bool, default=False)
+    parser.add_argument('--project_name', type=str, default="trash_project")
+    parser.add_argument('--exp_name', type=str, default="jdp")
     args = parser.parse_args()
 
     if args.input_size % 32 != 0:
@@ -44,7 +65,7 @@ def parse_args():
 
 
 def do_training(data_dir, model_dir, device, image_size, input_size, num_workers, batch_size,
-                learning_rate, max_epoch, save_interval):
+                learning_rate, max_epoch, save_interval, log_wandb, project_name, exp_name):
     dataset = SceneTextDataset(data_dir, split='train', image_size=image_size, crop_size=input_size)
     dataset = EASTDataset(dataset)
     num_batches = math.ceil(len(dataset) / batch_size)
@@ -59,6 +80,8 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
     model.train()
     for epoch in range(max_epoch):
         epoch_loss, epoch_start = 0, time.time()
+        epoch_loss_cls, epoch_loss_angle, epoch_loss_iou = 0, 0, 0
+        
         with tqdm(total=num_batches) as pbar:
             for img, gt_score_map, gt_geo_map, roi_mask in train_loader:
                 pbar.set_description('[Epoch {}]'.format(epoch + 1))
@@ -70,6 +93,9 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
 
                 loss_val = loss.item()
                 epoch_loss += loss_val
+                epoch_loss_cls += extra_info['cls_loss']
+                epoch_loss_angle += extra_info['angle_loss']
+                epoch_loss_iou += extra_info['iou_loss']
 
                 pbar.update(1)
                 val_dict = {
@@ -79,9 +105,25 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
                 pbar.set_postfix(val_dict)
 
         scheduler.step()
-
+        
+        # 에폭당 평균 로스들을 구함
+        mean_loss = epoch_loss / num_batches
+        mean_loss_cls = epoch_loss_cls/num_batches
+        mean_loss_angle = epoch_loss_angle/num_batches
+        mean_loss_iou = epoch_loss_iou/num_batches
+        
+        # 딕셔너리 형태로 변환하여 wandb에 로깅
+        if log_wandb:
+            log_dict = dict()
+            log_dict["mean_loss"] = mean_loss
+            log_dict["mean_loss_cls"] = mean_loss_cls
+            log_dict["mean_loss_angle"] = mean_loss_angle
+            log_dict["mean_loss_iou"] = mean_loss_iou
+            wandb.log(log_dict)
+        
         print('Mean loss: {:.4f} | Elapsed time: {}'.format(
             epoch_loss / num_batches, timedelta(seconds=time.time() - epoch_start)))
+        print(f'Mean cls loss: {mean_loss_cls:.4f} | Mean angle loss: {mean_loss_angle:.4f} | Mean iou loss: {mean_loss_iou:.4f}')
 
         if (epoch + 1) % save_interval == 0:
             if not osp.exists(model_dir):
@@ -92,6 +134,15 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
 
 
 def main(args):
+    # 시드 고정
+    seed_everything(42)
+    
+    # 본인의 프로젝트를 argparser로 넣으세요, entity는 기존에 사용하던 팀 엔티티를 사용합니다, 실험 이름은 argpaser로 넣으세요.
+    wandb.init(project=args.project_name, entity="boostcamp_aitech4_jdp", name=args.exp_name)
+    
+    # 기본적으로 args로 설정한 모든 값들을 config로 저장합니다.
+    wandb.config.update(args)
+    
     do_training(**args.__dict__)
 
 
