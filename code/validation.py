@@ -9,7 +9,7 @@ from torch import cuda
 from model import EAST
 from tqdm import tqdm
 from detect import detect
-import deteval
+import deteval_v2
 
 
 def do_validation(model, ckpt_fpath, valid_annot_path, input_size, batch_size, split='public'):
@@ -50,8 +50,8 @@ def do_validation(model, ckpt_fpath, valid_annot_path, input_size, batch_size, s
         json.dump(ufo_result, f, indent=4)
 
     # 현재 문제가 되는 부분
-    resDict = deteval.calc_deteval_metrics(ufo_result["images"], valid_anno["images"])
+    resDict = deteval_v2.calc_deteval_metrics(ufo_result["images"], valid_anno["images"])
     
 
-    return resDict
+    return None
 

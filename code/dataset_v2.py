@@ -363,20 +363,23 @@ class SceneTextDataset(Dataset):
         for word_info in self.anno['images'][image_fname]['words'].values():
             vertices.append(np.array(word_info['points']).flatten())
             labels.append(int(not word_info['illegibility']))
-        vertices, labels = np.array(vertices, dtype=np.float32), np.array(labels, dtype=np.int64)
 
+        vertices, labels = np.array(vertices, dtype=np.float32), np.array(labels, dtype=np.int64)
         vertices, labels = filter_vertices(vertices, labels, ignore_under=10, drop_under=1)
 
         image = Image.open(image_fpath)
 
-        # resize는 default
+        # resize, adjust_height는 default
         image, vertices = resize_img(image, vertices, self.image_size)
+        image, vertices = adjust_height(image, vertices)
 
-        # if valid, no transform
+        # if not valid, transform 적용
         if self.transform_tag == True:
-            image, vertices = adjust_height(image, vertices)
             image, vertices = rotate_img(image, vertices)
-            image, vertices = crop_img(image, vertices, labels, self.crop_size)
+        
+        # 크롭에서도 아미지 사이즈 변환이 존재합니다.
+        # 때문에 valid에도 적용합니다.
+        image, vertices = crop_img(image, vertices, labels, self.crop_size) 
 
         if image.mode != 'RGB':
             image = image.convert('RGB')
@@ -384,7 +387,7 @@ class SceneTextDataset(Dataset):
 
         funcs = []
 
-        # if valid, color jitter이 가능함
+        # if not valid, color jitter 적용
         if self.transform_tag == True:
             if self.color_jitter:
                 funcs.append(A.ColorJitter(0.5, 0.5, 0.5, 0.25))

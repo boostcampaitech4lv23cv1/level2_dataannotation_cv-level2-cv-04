@@ -82,12 +82,16 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
 
     # dataset_v2에서 import한 Dataset
     train_dataset = SceneTextDataset(data_dir, split='train', image_size=image_size, crop_size=input_size)
+    valid_dataset = SceneTextDataset(data_dir, split='valid', image_size=image_size, crop_size=input_size)
     
     train_dataset = EASTDataset(train_dataset)
+    valid_dataset = EASTDataset(valid_dataset)
 
     num_batches = math.ceil(len(train_dataset) / batch_size)
+    num_batches_valid = math.ceil(len(valid_dataset) / batch_size)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False) # num_workers 제거
 
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -101,6 +105,7 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
 
     for epoch in range(max_epoch):
         model.train()
+        print('TRAIN...')
         epoch_loss, epoch_start = 0, time.time()
         epoch_loss_cls, epoch_loss_angle, epoch_loss_iou = 0, 0, 0
         with tqdm(total=num_batches) as pbar:
@@ -124,11 +129,7 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
                     'Cls loss': extra_info['cls_loss'], 'Angle loss': extra_info['angle_loss'],
                     'IoU loss': extra_info['iou_loss']
                 }
-
-
                 pbar.set_postfix(val_dict)
-
-        scheduler.step()
 
         # 에폭당 평균 로스들을 구함
         mean_loss = epoch_loss / num_batches
@@ -154,13 +155,45 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
             ckpt_fpath = osp.join(model_dir, 'latest.pth')
             torch.save(model.state_dict(), ckpt_fpath)
         
-        ## train iter 과정이 마무리되면 valid iter 과정을 수행
-        valid_annot_path = osp.join(data_dir, 'ufo', 'splited_valid.json')
-        # def do_validation(model, ckpt_fpath, valid_annot_path, input_size, batch_size, split='public'):
-        resDict = do_validation(model, None, valid_annot_path, input_size, 50, None)
-        # methodMetrics = {'precision': methodPrecision, 'recall': methodRecall,'hmean': methodHmean}
-        print(f"{resDict['total']['hmean']:0.4f}, {resDict['total']['recall']:0.4f}, {resDict['total']['precision']:0.4f}")
+        # train iter 과정이 마무리되면 valid iter 과정을 수행
+        model.eval()
+        print('VALIDATION...')
+        with tqdm(total=num_batches_valid) as pbar:
+            for img, gt_score_map, gt_geo_map, roi_mask in valid_loader:
+                pbar.set_description('[Epoch {}]'.format(epoch + 1))
+                loss, extra_info = model.train_step(img, gt_score_map, gt_geo_map, roi_mask)
+                loss_val = loss.item()
+                epoch_loss += loss_val
+                epoch_loss_cls += extra_info['cls_loss']
+                epoch_loss_angle += extra_info['angle_loss']
+                epoch_loss_iou += extra_info['iou_loss']
+
+                pbar.update(1)
+                val_dict = {
+                    'Cls loss': extra_info['cls_loss'], 'Angle loss': extra_info['angle_loss'],
+                    'IoU loss': extra_info['iou_loss']
+                }
+                pbar.set_postfix(val_dict)
+
+        # validset에폭 당 평균 로스들을 구함
+        mean_loss = epoch_loss / num_batches_valid
+        mean_loss_cls = epoch_loss_cls/num_batches_valid
+        mean_loss_angle = epoch_loss_angle/num_batches_valid
+        mean_loss_iou = epoch_loss_iou/num_batches_valid
         
+        # 딕셔너리 형태로 변환하여 wandb에 로깅
+        log_dict = dict()
+        log_dict["valid_mean_loss"] = mean_loss
+        log_dict["valid_mean_loss_cls"] = mean_loss_cls
+        log_dict["valid_mean_loss_angle"] = mean_loss_angle
+        log_dict["valid_mean_loss_iou"] = mean_loss_iou
+        wandb.log(log_dict)
+
+        scheduler.step()
+
+        ## 스코어 계산부분, 구현 중
+        # valid_annot_path = osp.join(data_dir, 'ufo', 'splited_valid.json')
+        # resDict = do_validation(model, None, valid_annot_path, input_size, 50, None)
 
 
 
