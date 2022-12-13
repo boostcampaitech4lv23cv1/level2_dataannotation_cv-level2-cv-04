@@ -19,6 +19,10 @@ import validation
 from model import EAST
 import wandb
 
+# 영동이가 추가한 부분, 이거 없으면 ai_hub dset으로 train시 오류 발생
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
 import random
 import numpy as np
 
@@ -61,13 +65,13 @@ def parse_args():
     parser.add_argument('--batch_size', type=int, default=12)
     parser.add_argument('--learning_rate', type=float, default=1e-3)
     parser.add_argument('--max_epoch', type=int, default=200)
-    parser.add_argument('--save_interval', type=int, default=5)
+    parser.add_argument('--save_interval', type=int, default=1)
     # wandb 프로젝트와 실험이름을 저장하기 위해 argpaser 추가함
     parser.add_argument('--project_name', type=str, default="trash_project")
     parser.add_argument('--exp_name', type=str, default="jdp")
     # 선택적으로 log를 남기거나 validation할 수 있도록 argparser 추가함
-    parser.add_argument('--log_wandb', type=bool, default=False)
-    parser.add_argument('--log_val', type=bool, default=False)
+    parser.add_argument('--log_wandb', type=str, default="False")
+    parser.add_argument('--log_val', type=str, default="False")
     args = parser.parse_args()
 
     if args.input_size % 32 != 0:
@@ -125,7 +129,7 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
         mean_loss_iou = epoch_loss_iou/num_batches
         
         # 딕셔너리 형태로 변환하여 wandb에 로깅
-        if log_wandb:
+        if log_wandb == "True":
             log_dict = dict()
             log_dict["mean_loss"] = mean_loss
             log_dict["mean_loss_cls"] = mean_loss_cls
@@ -143,6 +147,9 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
 
             ckpt_fpath = osp.join(model_dir, 'latest.pth')
             torch.save(model.state_dict(), ckpt_fpath)
+
+            ckpt_fpath_for_backup = osp.join(model_dir, f'{exp_name}.pth')
+            torch.save(model.state_dict(), ckpt_fpath_for_backup)
 
 
 def do_training_with_valid(data_dir, model_dir, device, image_size, input_size, num_workers, batch_size,
@@ -203,14 +210,7 @@ def do_training_with_valid(data_dir, model_dir, device, image_size, input_size, 
         mean_loss_angle = epoch_loss_angle/num_batches
         mean_loss_iou = epoch_loss_iou/num_batches
         
-        # 딕셔너리 형태로 변환하여 wandb에 로깅
-        if log_wandb:
-            log_dict = dict()
-            log_dict["mean_loss"] = mean_loss
-            log_dict["mean_loss_cls"] = mean_loss_cls
-            log_dict["mean_loss_angle"] = mean_loss_angle
-            log_dict["mean_loss_iou"] = mean_loss_iou
-            wandb.log(log_dict)
+        
 
         print('Mean loss: {:.4f} | Elapsed time: {}'.format(
             epoch_loss / num_batches, timedelta(seconds=time.time() - epoch_start)))
@@ -221,6 +221,8 @@ def do_training_with_valid(data_dir, model_dir, device, image_size, input_size, 
                 os.makedirs(model_dir)
             ckpt_fpath = osp.join(model_dir, 'latest.pth')
             torch.save(model.state_dict(), ckpt_fpath)
+            ckpt_fpath_for_backup = osp.join(model_dir, f'{exp_name}.pth')
+            torch.save(model.state_dict(), ckpt_fpath_for_backup)
         
         # train iter 과정이 마무리되면 valid iter 과정을 수행
         model.eval()
@@ -251,7 +253,7 @@ def do_training_with_valid(data_dir, model_dir, device, image_size, input_size, 
         val_mean_loss_iou = val_epoch_loss_iou/num_batches_valid
 
         # 딕셔너리 형태로 변환하여 wandb에 로깅
-        if log_wandb:
+        if log_wandb == "True":
             log_dict = dict()
             log_dict["mean_loss"] = mean_loss
             log_dict["mean_loss_cls"] = mean_loss_cls
@@ -271,7 +273,7 @@ def do_training_with_valid(data_dir, model_dir, device, image_size, input_size, 
         valid_annot_path = osp.join(data_dir, 'ufo', 'splited_valid.json')
 
         ## validation 결과를 inference해서 json파일을 만듭니다.
-        validation.do_validation(model, None, valid_annot_path, input_size, 50, None)
+        validation.do_validation(model, None, valid_annot_path, input_size, valid_batch_size*2, None, exp_name)
 
 
 
@@ -279,7 +281,7 @@ def main(args):
     # 시드 고정
     seed_everything(42)
     
-    if args.log_wandb:
+    if args.log_wandb == "True":
         print("wandb에 로깅합니다")
         # 본인의 프로젝트를 argparser로 넣으세요, entity는 기존에 사용하던 팀 엔티티를 사용합니다, 실험 이름은 argpaser로 넣으세요.
         # 기본적으로 args로 설정한 모든 값들을 config로 저장합니다.
@@ -291,7 +293,7 @@ def main(args):
     # ufo dir에 "splited_train.json"과 "splited_valid.json"이 필요하며 이름은 고정되어 있음
     # 이들은 train.json 파일을 이용하여 생성되며 만들기 위해서는
     # utils>split_train_and_valid.ipynb로 생성 가능함.
-    if args.log_val:
+    if args.log_val == "True":
         print("validation을 수행합니다")
         do_training_with_valid(**args.__dict__)
     else:

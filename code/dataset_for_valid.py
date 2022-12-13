@@ -287,7 +287,7 @@ def adjust_height(img, vertices, ratio=0.2):
     return img, new_vertices
 
 
-def rotate_img(img, vertices, angle_range=10):
+def rotate_img(img, vertices, angle_range=30):
     '''rotate image [-10, 10] degree to aug data
     Input:
         img         : PIL Image
@@ -375,7 +375,7 @@ class SceneTextDataset2(Dataset):
 
         # if not valid, transform 적용
         if self.transform_tag == True:
-            image, vertices = rotate_img(image, vertices)
+            image, vertices = rotate_img(image, vertices, angle_range=30)
         
         # 크롭에서도 아미지 사이즈 변환이 존재합니다.
         # 때문에 valid에도 적용합니다.
@@ -391,6 +391,39 @@ class SceneTextDataset2(Dataset):
         if self.transform_tag == True:
             if self.color_jitter:
                 funcs.append(A.ColorJitter(0.5, 0.5, 0.5, 0.25))
+        
+        # 김이삭 멘토님 augmentation
+        if self.transform_tag == True:  
+            transform = A.Compose([
+                A.RandomBrightnessContrast(brightness_limit=[0.1, 0.3],
+                                        contrast_limit=[0.1, 0.3],
+                                        p=0.8),
+                
+                A.OneOf([
+                    A.RGBShift(r_shift_limit=10,
+                            g_shift_limit=10,
+                            b_shift_limit=10,
+                            p=1.0),
+                    A.HueSaturationValue(hue_shift_limit=20,
+                                        sat_shift_limit=30,
+                                        val_shift_limit=20,
+                                        p=1.0)
+                    ], p=0.8),
+                
+                A.ChannelShuffle(p=0.1),
+                
+                A.OneOf([
+                    A.GaussNoise(var_limit=(10.0, 400.0)),
+                    A.RandomBrightnessContrast(),
+                    A.HueSaturationValue()
+                    ], p=0.8),
+
+                A.OneOf([
+                    A.Blur(blur_limit=3),
+                    A.MedianBlur(blur_limit=3)
+                    ], p=0.8),
+            ])
+            image = transform(image=image)['image']
         
         # norm은 train, valid와 무관함.
         if self.normalize:
