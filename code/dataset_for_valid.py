@@ -205,7 +205,7 @@ def crop_img(img, vertices, labels, length):
     ratio_w = img.width / w
     ratio_h = img.height / h
     assert(ratio_w >= 1 and ratio_h >= 1)
-
+    
     new_vertices = np.zeros(vertices.shape)
     if vertices.size > 0:
         new_vertices[:,[0,2,4,6]] = vertices[:,[0,2,4,6]] * ratio_w
@@ -220,6 +220,8 @@ def crop_img(img, vertices, labels, length):
         cnt += 1
         start_w = int(np.random.rand() * remain_w)
         start_h = int(np.random.rand() * remain_h)
+        if new_vertices.ndim < 2:
+            print("new_vertices 차원", new_vertices.shape, new_vertices)
         flag = is_cross_text([start_w, start_h], length, new_vertices[labels==1,:])
     box = (start_w, start_h, start_w + length, start_h + length)
     region = img.crop(box)
@@ -371,15 +373,23 @@ class SceneTextDataset2(Dataset):
 
         # resize, adjust_height는 default
         image, vertices = resize_img(image, vertices, self.image_size)
+        if vertices.ndim < 2:
+            print("after resize vertices 차원", vertices.shape, vertices)
+        
         image, vertices = adjust_height(image, vertices)
+        if vertices.ndim < 2:
+            print("after adjust_height vertices 차원", vertices.shape, vertices)
 
         # if not valid, transform 적용
         if self.transform_tag == True:
             image, vertices = rotate_img(image, vertices)
+            if vertices.ndim < 2:
+                print("after rotate_img vertices 차원", vertices.shape, vertices)
         
         # 크롭에서도 아미지 사이즈 변환이 존재합니다.
         # 때문에 valid에도 적용합니다.
-        image, vertices = crop_img(image, vertices, labels, self.crop_size) 
+        image, vertices = crop_img(image, vertices, labels, self.crop_size)
+        # print("이미지 사이즈", image.height, image.width)
 
         if image.mode != 'RGB':
             image = image.convert('RGB')
