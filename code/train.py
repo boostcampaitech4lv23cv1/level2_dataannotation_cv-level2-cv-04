@@ -20,6 +20,65 @@ import random
 import numpy as np
 
 
+import math
+from torch.optim.lr_scheduler import _LRScheduler
+
+class CosineAnnealingWarmUpRestarts(_LRScheduler):
+    def __init__(self, optimizer, T_0, T_mult=1, eta_max=0.1, T_up=0, gamma=1., last_epoch=-1):
+        if T_0 <= 0 or not isinstance(T_0, int):
+            raise ValueError("Expected positive integer T_0, but got {}".format(T_0))
+        if T_mult < 1 or not isinstance(T_mult, int):
+            raise ValueError("Expected integer T_mult >= 1, but got {}".format(T_mult))
+        if T_up < 0 or not isinstance(T_up, int):
+            raise ValueError("Expected positive integer T_up, but got {}".format(T_up))
+        self.T_0 = T_0
+        self.T_mult = T_mult
+        self.base_eta_max = eta_max
+        self.eta_max = eta_max
+        self.T_up = T_up
+        self.T_i = T_0
+        self.gamma = gamma
+        self.cycle = 0
+        self.T_cur = last_epoch
+        super(CosineAnnealingWarmUpRestarts, self).__init__(optimizer, last_epoch)
+    
+    def get_lr(self):
+        if self.T_cur == -1:
+            return self.base_lrs
+        elif self.T_cur < self.T_up:
+            return [(self.eta_max - base_lr)*self.T_cur / self.T_up + base_lr for base_lr in self.base_lrs]
+        else:
+            return [base_lr + (self.eta_max - base_lr) * (1 + math.cos(math.pi * (self.T_cur-self.T_up) / (self.T_i - self.T_up))) / 2
+                    for base_lr in self.base_lrs]
+
+    def step(self, epoch=None):
+        if epoch is None:
+            epoch = self.last_epoch + 1
+            self.T_cur = self.T_cur + 1
+            if self.T_cur >= self.T_i:
+                self.cycle += 1
+                self.T_cur = self.T_cur - self.T_i
+                self.T_i = (self.T_i - self.T_up) * self.T_mult + self.T_up
+        else:
+            if epoch >= self.T_0:
+                if self.T_mult == 1:
+                    self.T_cur = epoch % self.T_0
+                    self.cycle = epoch // self.T_0
+                else:
+                    n = int(math.log((epoch / self.T_0 * (self.T_mult - 1) + 1), self.T_mult))
+                    self.cycle = n
+                    self.T_cur = epoch - self.T_0 * (self.T_mult ** n - 1) / (self.T_mult - 1)
+                    self.T_i = self.T_0 * self.T_mult ** (n)
+            else:
+                self.T_i = self.T_0
+                self.T_cur = epoch
+                
+        self.eta_max = self.base_eta_max * (self.gamma**self.cycle)
+        self.last_epoch = math.floor(epoch)
+        for param_group, lr in zip(self.optimizer.param_groups, self.get_lr()):
+            param_group['lr'] = lr
+
+
 def seed_everything(seed:int = 42):
     """재현을 하기 위한 시드 고정 함수
     Args:
@@ -74,10 +133,12 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = EAST()
     model.to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[max_epoch // 2], gamma=0.1)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+    scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=40, eta_min=1e-6, verbose=True)
 
     model.train()
+    min_epoch_loss = 99999999
+    RLR_counter = 0
     for epoch in range(max_epoch):
         epoch_loss, epoch_start = 0, time.time()
         epoch_loss_cls, epoch_loss_angle, epoch_loss_iou = 0, 0, 0
@@ -104,6 +165,11 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
                 }
                 pbar.set_postfix(val_dict)
 
+        if epoch_loss > min_epoch_loss:
+            RLR_counter += 1
+            print(f'loss not reduced for {RLR_counter} epochs')
+        else:
+            RLR_counter = 0
         scheduler.step()
         
         # 에폭당 평균 로스들을 구함
@@ -115,14 +181,15 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
         # 딕셔너리 형태로 변환하여 wandb에 로깅
         if log_wandb:
             log_dict = dict()
+            log_dict["learning_rate"] = optimizer.param_groups[0]['lr']
             log_dict["mean_loss"] = mean_loss
             log_dict["mean_loss_cls"] = mean_loss_cls
             log_dict["mean_loss_angle"] = mean_loss_angle
             log_dict["mean_loss_iou"] = mean_loss_iou
             wandb.log(log_dict)
         
-        print('Mean loss: {:.4f} | Elapsed time: {}'.format(
-            epoch_loss / num_batches, timedelta(seconds=time.time() - epoch_start)))
+        print('Mean loss: {:.4f} | Elapsed time: {} | lr: {}'.format(
+            epoch_loss / num_batches, timedelta(seconds=time.time() - epoch_start), optimizer.param_groups[0]['lr']))
         print(f'Mean cls loss: {mean_loss_cls:.4f} | Mean angle loss: {mean_loss_angle:.4f} | Mean iou loss: {mean_loss_iou:.4f}')
 
         if (epoch + 1) % save_interval == 0:
@@ -132,6 +199,7 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
             ckpt_fpath = osp.join(model_dir, 'latest.pth')
             torch.save(model.state_dict(), ckpt_fpath)
 
+        min_epoch_loss = min(min_epoch_loss, epoch_loss)
 
 def main(args):
     # 시드 고정
@@ -139,7 +207,7 @@ def main(args):
     
     if args.log_wandb:
         # 본인의 프로젝트를 argparser로 넣으세요, entity는 기존에 사용하던 팀 엔티티를 사용합니다, 실험 이름은 argpaser로 넣으세요.
-        wandb.init(project=args.project_name, entity="boostcamp_aitech4_jdp", name=args.exp_name)
+        wandb.init(project=args.project_name, entity="boostcamp_aitech4_jdp", name=args.exp_name, save_code=True)
     
         # 기본적으로 args로 설정한 모든 값들을 config로 저장합니다.
         wandb.config.update(args)
