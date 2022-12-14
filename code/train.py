@@ -162,7 +162,7 @@ def do_training_with_valid(data_dir, model_dir, device, image_size, input_size, 
     valid_dataset = EASTDataset(valid_dataset)
 
     num_batches = math.ceil(len(train_dataset) / batch_size)
-    valid_batch_size = batch_size//2
+    valid_batch_size = batch_size//4
     num_batches_valid = math.ceil(len(valid_dataset) / valid_batch_size)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
@@ -254,7 +254,7 @@ def do_training_with_valid(data_dir, model_dir, device, image_size, input_size, 
 
         
 
-        print(f'Mean cls loss: {mean_loss_cls:.4f} | Mean angle loss: {mean_loss_angle:.4f} | Mean iou loss: {mean_loss_iou:.4f}')
+        print(f'Mean cls loss: {val_mean_loss_cls:.4f} | Mean angle loss: {val_mean_loss_angle:.4f} | Mean iou loss: {val_mean_loss_iou:.4f}')
 
         scheduler.step()
 

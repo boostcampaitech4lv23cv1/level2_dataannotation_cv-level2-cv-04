@@ -371,44 +371,52 @@ class SceneTextDataset2(Dataset):
 
         image = Image.open(image_fpath)
 
-        # resize, adjust_height는 default
-        image, vertices = resize_img(image, vertices, self.image_size)
-        if vertices.ndim < 2:
-            print("after resize vertices 차원", vertices.shape, vertices)
-        
-        image, vertices = adjust_height(image, vertices)
-        if vertices.ndim < 2:
-            print("after adjust_height vertices 차원", vertices.shape, vertices)
+        if self.transform_tag:
+            image, vertices = resize_img(image, vertices, self.image_size)
+            if vertices.ndim < 2:
+                print("after resize vertices 차원", vertices.shape, vertices)
+            
+            image, vertices = adjust_height(image, vertices)
+            if vertices.ndim < 2:
+                print("after adjust_height vertices 차원", vertices.shape, vertices)
 
-        # if not valid, transform 적용
-        if self.transform_tag == True:
             image, vertices = rotate_img(image, vertices)
             if vertices.ndim < 2:
                 print("after rotate_img vertices 차원", vertices.shape, vertices)
-        
-        # 크롭에서도 아미지 사이즈 변환이 존재합니다.
-        # 때문에 valid에도 적용합니다.
-        image, vertices = crop_img(image, vertices, labels, self.crop_size)
-        # print("이미지 사이즈", image.height, image.width)
+            
+            image, vertices = crop_img(image, vertices, labels, self.crop_size)
+            
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+            image = np.array(image)
 
-        if image.mode != 'RGB':
-            image = image.convert('RGB')
-        image = np.array(image)
+            funcs = []
 
-        funcs = []
-
-        # if not valid, color jitter 적용
-        if self.transform_tag == True:
             if self.color_jitter:
                 funcs.append(A.ColorJitter(0.5, 0.5, 0.5, 0.25))
-        
-        # norm은 train, valid와 무관함.
-        if self.normalize:
-            funcs.append(A.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)))
-        transform = A.Compose(funcs)
+            
+            if self.normalize:
+                funcs.append(A.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)))
+            transform = A.Compose(funcs)
 
-        image = transform(image=image)['image']
-        word_bboxes = np.reshape(vertices, (-1, 4, 2))
+            image = transform(image=image)['image']
+            word_bboxes = np.reshape(vertices, (-1, 4, 2))
+
+        else: # 만약 validation set이면 inference와 동일한 상태로 만듭니다
+            image, vertices = resize_img(image, vertices, 1024)
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+            image = np.array(image)
+            prep_fn = A.Compose([
+                A.PadIfNeeded(min_height=1024,
+                              min_width=1024,
+                              # 이게 뭘까?
+                              position=A.PadIfNeeded.PositionType.TOP_LEFT),
+                              A.Normalize()])
+            image = prep_fn(image=image)['image']
+            word_bboxes = np.reshape(vertices, (-1, 4, 2))
+
+
         roi_mask = generate_roi_mask(image, vertices, labels)
 
         return image, word_bboxes, roi_mask
