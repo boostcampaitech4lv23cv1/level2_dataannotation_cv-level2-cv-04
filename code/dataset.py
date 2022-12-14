@@ -334,7 +334,7 @@ def filter_vertices(vertices, labels, ignore_under=0, drop_under=0):
 
 
 class SceneTextDataset(Dataset):
-    def __init__(self, root_dirs=['../input/data/'], splits=['train'], image_size=1024, crop_size=512, color_jitter=True,
+    def __init__(self, root_dirs=['../input/data/ICDAR17_Korean'], splits=['train'], image_size=1024, crop_size=512, color_jitter=True,
                  normalize=True):
         
         self.anno = dict()
@@ -342,8 +342,8 @@ class SceneTextDataset(Dataset):
         for root_dir, split in zip(root_dirs, splits):
             with open(osp.join(root_dir, 'ufo/{}.json'.format(split)), 'r') as f:
                 anno = json.load(f)
-                for filename, d in anno['images'].items():
-                    self.anno['images'][osp.join(root_dir, 'images', filename)] = d
+            for filename, d in anno['images'].items():
+                self.anno['images'][osp.join(root_dir, 'images', filename)] = d
                     
 
         self.image_fnames = sorted(self.anno['images'].keys())
