@@ -6,7 +6,7 @@ temp
 code/pths/
 input
 .gitconfig
-workspace
+workspace_for_viz
 .netrc
 **/wandb
 code/*.sh
