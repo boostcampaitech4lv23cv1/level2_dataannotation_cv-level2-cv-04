@@ -34,6 +34,7 @@ import numpy as np
 # 2022-12-13 08:24 Validation loss 로깅 버그 수정
 
 
+
 def seed_everything(seed:int = 42):
     """재현을 하기 위한 시드 고정 함수
     Args:
@@ -154,6 +155,7 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
 
 def do_training_with_valid(data_dir, model_dir, device, image_size, input_size, num_workers, batch_size,
                            learning_rate, max_epoch, save_interval, log_wandb, project_name, exp_name, log_val):
+    EARLYSTOP_F1_THRESHOLD = 0
 
     train_dataset = SceneTextDataset2(data_dir, split='train', image_size=image_size, crop_size=input_size)
     valid_dataset = SceneTextDataset2(data_dir, split='valid', image_size=image_size, crop_size=input_size)
@@ -162,7 +164,7 @@ def do_training_with_valid(data_dir, model_dir, device, image_size, input_size, 
     valid_dataset = EASTDataset(valid_dataset)
 
     num_batches = math.ceil(len(train_dataset) / batch_size)
-    valid_batch_size = batch_size//4
+    valid_batch_size = batch_size//4 # 12, 3, 9
     num_batches_valid = math.ceil(len(valid_dataset) / valid_batch_size)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
@@ -261,12 +263,20 @@ def do_training_with_valid(data_dir, model_dir, device, image_size, input_size, 
         valid_annot_path = osp.join(data_dir, 'ufo', 'splited_valid.json')
 
         ## validation 결과를 inference해서 json파일을 만듭니다.
-        val_result = validation.do_validation(model, None, valid_annot_path, input_size, valid_batch_size*2, None, exp_name)
+        val_result = validation.do_validation(model, None, valid_annot_path, input_size, 128, None, exp_name)
         f1 = val_result["total"]["hmean"]
         recall = val_result["total"]["recall"]
         precision = val_result["total"]["precision"]
 
         print(f"[{epoch} EPOCH VALID RESULT] f1: {f1:.2f}, recall: {recall:.2f}, precision: {precision:.2f}")
+
+        # f1 score가 EARLYSTOP_F1_THRESHOLD 넘으면, EARLYSTOP_F1_THRESHOLD를 현재값으로 업데이트하고 가중치를 저장합니다.
+        if f1 > EARLYSTOP_F1_THRESHOLD:
+            print(f"score update😉! {EARLYSTOP_F1_THRESHOLD} → {f1:.4f}")
+            ckpt_fpath_for_best = osp.join(model_dir, f'_bestscore_{exp_name}.pth')
+            torch.save(model.state_dict(), ckpt_fpath_for_best)
+            EARLYSTOP_F1_THRESHOLD = f1
+
 
         # 딕셔너리 형태로 변환하여 wandb에 로깅
         if log_wandb == "True":
