@@ -28,6 +28,8 @@ def calc_deteval_metrics(pred_bboxes_dict, gt_bboxes_dict, transcriptions_dict=N
     현재는 rect(xmin, ymin, xmax, ymax) 형식의 bounding box만 지원함. 다른 형식(quadrilateral,
     poligon, etc.)의 데이터가 들어오면 외접하는 rect로 변환해서 이용하고 있음.
     """
+    
+    # print("START")
 
     def one_to_one_match(row, col):
         cont = 0
@@ -121,7 +123,7 @@ def calc_deteval_metrics(pred_bboxes_dict, gt_bboxes_dict, transcriptions_dict=N
         w = (r.xmax - r.xmin + 1)
         h = (r.ymax - r.ymin + 1)
         return math.sqrt(h * h + w * w)
-
+    
     if eval_hparams is None:
         eval_hparams = default_evaluation_params()
 
@@ -129,12 +131,15 @@ def calc_deteval_metrics(pred_bboxes_dict, gt_bboxes_dict, transcriptions_dict=N
         raise NotImplementedError
 
     # bbox들이 rect 이외의 형식으로 되어있는 경우 rect 형식으로 변환
+    
     _pred_bboxes_dict, _gt_bboxes_dict= deepcopy(pred_bboxes_dict), deepcopy(gt_bboxes_dict)
     pred_bboxes_dict, gt_bboxes_dict = dict(), dict()
+    # print("입력된 딕셔너리", _pred_bboxes_dict)
     for sample_name, bboxes in _pred_bboxes_dict.items():
         # print("sample_name", sample_name) # 추가
         # print("bboxes", bboxes) # 이게 왜 리스트지? 이해가 안가내 진짜
-        
+        # print("샘플 이름", sample_name)
+        # print("바운딩 박스들", bboxes)
         # 원래 rect 형식이었으면 변환 없이 그대로 이용
         if len(bboxes) > 0 and np.array(bboxes[0]).ndim == 1 and len(bboxes[0]) == 4:
             pred_bboxes_dict = _pred_bboxes_dict
@@ -165,7 +170,7 @@ def calc_deteval_metrics(pred_bboxes_dict, gt_bboxes_dict, transcriptions_dict=N
 
     numGt = 0
     numDet = 0
-
+    # print("GG_BOXES_DICT 루프")
     for sample_name in gt_bboxes_dict:
 
         recall = 0
@@ -185,17 +190,24 @@ def calc_deteval_metrics(pred_bboxes_dict, gt_bboxes_dict, transcriptions_dict=N
         recallMat = np.empty([1, 1])
         precisionMat = np.empty([1, 1])
 
+
         pointsList = gt_bboxes_dict[sample_name]
+        # print("    샘플이름", sample_name)
+        # print("    포인트들의 리스트", pointsList)
 
         if transcriptions_dict is None:
             transcriptionsList = None
         else:
             transcriptionsList = transcriptions_dict[sample_name]
-
+        # print("    트랜스크립션", transcriptionsList)
         for n in range(len(pointsList)):
             points = pointsList[n]
-            transcription = transcriptionsList[n]
-            dontCare = transcription == "###"
+            ## 변경함
+            if transcriptionsList != None:
+                transcription = transcriptionsList[n]
+                dontCare = transcription == "###"
+            else: # transcription is None
+                dontCare = False
             gtRect = Rectangle(*points)
             gtRects.append(gtRect)
             gtPolPoints.append(np.array(points).tolist())

@@ -6,7 +6,7 @@ temp
 code/pths/
 input
 .gitconfig
-workspace_for_viz
+workspace
 .netrc
 **/wandb
 code/*.sh
@@ -27,11 +27,6 @@ code/validations
 .profile
 .config
 .nv
-utils/aihub_to_ufo/images
-utils/aihub_to_ufo/labels
-code/z.sh
-**/nohup.out
-workspace
 
 ### Linux ###
 *~

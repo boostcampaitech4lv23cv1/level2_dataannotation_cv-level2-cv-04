@@ -11,10 +11,20 @@ from tqdm import tqdm
 from detect import detect
 import deteval_v2
 
+def format_change(infer_format:dict) -> dict:
+    metric_format = dict()
+    for img_name in infer_format.keys():
+        bboxes = []
+        for idx, bbox in infer_format[img_name]["words"].items():
+            bboxes.append(bbox["points"])
+        metric_format[f"{img_name}"] = bboxes
+    return metric_format
 
 def do_validation(model, ckpt_fpath, valid_annot_path, input_size, batch_size, split='public', json_file_name='temp'):
     print('Inference in progress')
     model.eval()
+
+    gt_annot_path = valid_annot_path
 
     image_fnames, by_sample_bboxes = [], []
     with open(valid_annot_path, 'r') as f:
@@ -51,9 +61,20 @@ def do_validation(model, ckpt_fpath, valid_annot_path, input_size, batch_size, s
     with open(f"./validations/{json_file_name}.json", 'w') as f:
         json.dump(ufo_result, f, indent=4)
 
-    # 현재 문제가 되는 부분
-    # resDict = deteval_v2.calc_deteval_metrics(ufo_result["images"], valid_anno["images"])
-    
+    pred_annot_path = f"./validations/{json_file_name}.json"
+    gt_annot_path
 
-    return None
+    # .json들을 다시 불러옵니다
+    with open(pred_annot_path, 'r') as f:
+        preds = json.load(f)
+    with open(gt_annot_path, 'r') as f:
+        gts = json.load(f)
+    
+    # format을 변경합니다
+    preds_for_metric = format_change(preds['images'])
+    gts_for_metrics = format_change(gts['images'])
+
+    # metric 계산하고 리턴합니다
+    resDict = deteval_v2.calc_deteval_metrics(preds_for_metric, gts_for_metrics)
+    return resDict
 

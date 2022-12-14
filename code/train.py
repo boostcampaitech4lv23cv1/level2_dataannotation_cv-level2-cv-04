@@ -252,6 +252,22 @@ def do_training_with_valid(data_dir, model_dir, device, image_size, input_size, 
         val_mean_loss_angle = val_epoch_loss_angle/num_batches_valid
         val_mean_loss_iou = val_epoch_loss_iou/num_batches_valid
 
+        
+
+        print(f'Mean cls loss: {mean_loss_cls:.4f} | Mean angle loss: {mean_loss_angle:.4f} | Mean iou loss: {mean_loss_iou:.4f}')
+
+        scheduler.step()
+
+        valid_annot_path = osp.join(data_dir, 'ufo', 'splited_valid.json')
+
+        ## validation 결과를 inference해서 json파일을 만듭니다.
+        val_result = validation.do_validation(model, None, valid_annot_path, input_size, valid_batch_size*2, None, exp_name)
+        f1 = val_result["total"]["hmean"]
+        recall = val_result["total"]["recall"]
+        precision = val_result["total"]["precision"]
+
+        print(f"[{epoch} EPOCH VALID RESULT] f1: {f1:.2f}, recall: {recall:.2f}, precision: {precision:.2f}")
+
         # 딕셔너리 형태로 변환하여 wandb에 로깅
         if log_wandb == "True":
             log_dict = dict()
@@ -264,16 +280,13 @@ def do_training_with_valid(data_dir, model_dir, device, image_size, input_size, 
             log_dict["valid_mean_loss_cls"] = val_mean_loss_cls
             log_dict["valid_mean_loss_angle"] = val_mean_loss_angle
             log_dict["valid_mean_loss_iou"] = val_mean_loss_iou
+
+            log_dict["f1"] = f1
+            log_dict["recall"] = recall
+            log_dict["precision"] = precision
+
             wandb.log(log_dict)
 
-        print(f'Mean cls loss: {mean_loss_cls:.4f} | Mean angle loss: {mean_loss_angle:.4f} | Mean iou loss: {mean_loss_iou:.4f}')
-
-        scheduler.step()
-
-        valid_annot_path = osp.join(data_dir, 'ufo', 'splited_valid.json')
-
-        ## validation 결과를 inference해서 json파일을 만듭니다.
-        validation.do_validation(model, None, valid_annot_path, input_size, valid_batch_size*2, None, exp_name)
 
 
 
