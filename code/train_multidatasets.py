@@ -13,8 +13,8 @@ from tqdm import tqdm
 
 from east_dataset import EASTDataset
 from dataset import SceneTextMultiDataset as SceneTextDataset
-from dataset_for_valid import SceneTextDataset2
-import validation
+# from dataset_for_valid import SceneTextDataset2
+# import validation
 
 from model import EAST
 import wandb
@@ -207,7 +207,7 @@ def do_training_with_valid(data_dirs_json, model_dir, device, image_size, input_
             val_mean_loss_iou = val_epoch_loss_iou/num_batches_valid
 
         # 딕셔너리 형태로 변환하여 wandb에 로깅
-        if log_wandb == "True":
+        if log_wandb:
             log_dict = dict()
             log_dict["mean_loss"] = mean_loss
             log_dict["mean_loss_cls"] = mean_loss_cls
