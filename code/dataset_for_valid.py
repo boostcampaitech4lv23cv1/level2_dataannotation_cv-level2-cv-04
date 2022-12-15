@@ -395,6 +395,10 @@ class SceneTextDataset2(Dataset):
             if self.color_jitter:
                 funcs.append(A.ColorJitter(0.5, 0.5, 0.5, 0.25))
             
+            funcs.append(A.OneOf([A.GaussianBlur(p=0.3),
+                                  A.HueSaturationValue(p=0.3),
+                                  A.RandomSnow(p=0.3)],p=1.0))
+
             if self.normalize:
                 funcs.append(A.Normalize())
             transform = A.Compose(funcs)
