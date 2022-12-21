@@ -7,6 +7,14 @@ code/pths/
 input
 .gitconfig
 workspace
+.netrc
+**/wandb
+code/*.sh
+code/*.out
+utils/aihub_to_ufo/
+code/*.json
+code/validations
+code/train_adamw.py
 
 ## kdy
 **/*.pth
